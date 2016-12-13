@@ -1,0 +1,234 @@
+﻿
+<!doctype html>
+<html>
+<head>
+    <title>canvas简单画板</title>
+    <script src="//cdn.bootcss.com/jquery/2.2.4/jquery.js"></script>
+    <style type="text/css">
+        #can {
+            width: 600px;
+            height: 200px;
+            border: 1px solid #ccc;
+            margin-top: 0px;
+            margin-left: 20px;
+        }
+        #testcan {
+            width: 600px;
+            height: 200px;
+            border: 1px solid #ccc;
+            margin-top: 0px;
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="padding-left:20px">canvas简单画板</h2>
+    <canvas id="can" width="600" height="200"></canvas>
+    <br/>
+    <input type="button" value="开始绘制" id="startdraw" />
+    <input type="button" value="重放轨迹" id="testdraw" />
+    <br />
+    <br />
+    <canvas id="testcan" width="600" height="200"></canvas>
+    
+    <script type="text/javascript">
+        function getBodyOffsetTop(el) {
+            var top = 0;
+            do {
+                top = top + el.offsetTop;
+            } while (el = el.offsetParent);
+            return top;
+        }
+        function getBodyOffsetLeft(el) {
+            var left = 0;
+            do {
+                left = left + el.offsetLeft;
+            } while (el = el.offsetParent);
+            return left;
+        }
+        function Drawing(canvas, options) {
+            typeof canvas == 'string' && (canvas = document.getElementById(canvas));
+            if (!canvas || !canvas.getContext) {
+                throw new Error(100, '你的浏览器不支持!');
+            }
+            this.starttime = 0;
+            this.init(canvas);
+        }
+        Drawing.prototype = {
+            init: function (canvas) {
+                this.canvas = canvas;
+                this.context = canvas.getContext('2d');
+                this.context.lineWidth = 1;
+                this.context.lineJons = 'round';
+                this.context.lineCep = 'round';
+                this.isButtonDown = false;
+                this.historyStroker = [];
+                this.curStroker = { color: '#000000', path: [] };
+                this.lastX = 0;
+                this.lastY = 0;
+                this.curColor = '#000000';
+                this.toolbarspos = {};
+                this.bindEvent();
+            },
+            bindEvent: function () {
+                var self = this;
+                this.canvas.addEventListener('mousemove', function (event) {
+                    var x = event.pageX - getBodyOffsetLeft(this),
+                    y = event.pageY - getBodyOffsetTop(this);
+                    self.onMouseMove({ x: x, y: y });
+                }, false);
+                this.canvas.addEventListener('mousedown', function (event) {
+                    var x = event.pageX - getBodyOffsetLeft(this),
+                    y = event.pageY - getBodyOffsetTop(this);
+                    self.onMouseDown(event, { x: x, y: y });
+                }, false);
+                this.canvas.addEventListener('mouseup', function (event) {
+                    var x = event.pageX - getBodyOffsetLeft(this),
+                    y = event.pageY - getBodyOffsetTop(this);
+                    self.onMouseUp(event, { x: x, y: y });
+                }, false);
+                this.canvas.addEventListener('click', function (event) {
+                    var x = event.pageX - getBodyOffsetLeft(this),
+                    y = event.pageY - getBodyOffsetTop(this);
+                    self.onClick({ x: x, y: y });
+                }, false);
+            },
+            onMouseMove: function (pos) {
+                if (this.isButtonDown) {
+                    var p = this.toolbarspos;
+                    for (var i in p) {
+                        if (pos.x >= p[i].x
+                        && pos.x <= p[i].x + p[i].w
+                        && pos.y >= p[i].y
+                        && pos.y <= p[i].y + p[i].h) {
+                            return;
+                        }
+                    }
+                    this.context.lineTo(pos.x, pos.y);
+                    this.context.stroke();
+                    this.lastX = pos.x;
+                    this.lastY = pos.y;
+                    pos.timer = (new Date()).getTime() - this.starttime;
+                    this.curStroker.path.push(pos);
+                }
+            },
+            onMouseDown: function (event, pos) {
+                if (this.starttime == 0) {
+                    alert("请点击开始绘制按钮进行绘制");
+                    return;
+                }
+                
+                if (event.button == 0) {
+                    var p = this.toolbarspos;
+                    for (var i in p) {
+                        if (pos.x >= p[i].x
+                        && pos.x <= p[i].x + p[i].w
+                        && pos.y >= p[i].y
+                        && pos.y <= p[i].y + p[i].h) {
+                            return;
+                        }
+                    }
+                    this.isButtonDown = true;
+                    this.lastX = pos.x;
+                    this.lastY = pos.y;
+                    this.context.beginPath();
+                    this.context.moveTo(this.lastX, this.lastY);
+                    this.curStroker.color = this.curColor;
+                    pos.timer = (new Date()).getTime() - this.starttime;
+                    this.curStroker.path.push(pos);
+                }
+            },
+            onMouseUp: function (event, pos) {
+                if (event.button == 0) {
+                    var p = this.toolbarspos;
+                    for (var i in p) {
+                        if (pos.x >= p[i].x
+                        && pos.x <= p[i].x + p[i].w
+                        && pos.y >= p[i].y
+                        && pos.y <= p[i].y + p[i].h) {
+                            return;
+                        }
+                    }
+                    this.isButtonDown = false;
+                    this.historyStroker.push(this.curStroker);
+                    this.curStroker = { color: this.curColor, path: [] };
+                }
+            },
+            
+            ResetDrawCentre: function () {
+                var p = this.historyStroker, p2,
+                curColor = this.context.strokeStyle;
+                for (var i = 0; i < p.length; i++) {
+                    this.context.strokeStyle = p[i].color;
+                    this.context.beginPath();
+                    for (var t = 0; t < p[i].path.length; t++) {
+                        p2 = p[i].path[t];
+                        if (t == 0) this.context.moveTo(p2.x, p2.y);
+                        this.context.lineTo(p2.x, p2.y);
+                        this.context.stroke();
+                    }
+                    this.context.beginPath();
+                }
+                this.context.strokeStyle = curColor;
+            },
+            testDraw: function () {
+                var self = this;
+                //this.intervalHandle = null;
+                if (!this.startplay) {
+                    this.startplay = (new Date()).getTime();
+                }
+                if (!this.lineIndex) {
+                    this.lineIndex = 0;
+                }
+                var p = this.historyStroker;
+                var curLine = p[this.lineIndex], curColor = p[0].color, pointIndex = 0, p2;
+                if (!this.testcanvas) {
+                    this.testcanvas = document.getElementById("testcan");
+                    this.testcontext = this.testcanvas.getContext('2d');
+                    this.testcontext.beginPath();
+                }
+                
+                if (this.intervalHandle) return;
+                this.intervalHandle = window.setInterval(function () {
+                    var deltatime = (new Date()).getTime() - self.startplay;
+                    p2 = p[self.lineIndex].path[pointIndex];
+                    //绘制完成一条线
+                    if (!p2) {
+                        window.clearInterval(self.intervalHandle);
+                        self.intervalHandle = null;
+                        if (self.lineIndex < p.length - 1) {
+                            self.lineIndex = self.lineIndex + 1;
+                            self.testDraw();
+                            console.log("===================")
+                        }
+                        
+                    }
+                    if (deltatime >= p2.timer) {
+                        self.testcontext.strokeStyle = curColor;
+                        
+                        if (pointIndex == 0) {
+                            self.testcontext.moveTo(p2.x, p2.y);
+                            console.log(0);
+                        }
+                        pointIndex = pointIndex + 1;
+                        self.testcontext.lineTo(p2.x, p2.y);
+                        self.testcontext.strokeStyle = "#ff0000";
+                        self.testcontext.stroke();
+                        //testcontext.beginPath();
+                        console.log(p2.x + "===" + p2.y);
+                    }
+                }, 0)
+
+            }
+        };
+        var draw = new Drawing('can');
+        $("#startdraw").click(function () {
+            draw.starttime = (new Date()).getTime();
+        })
+        $("#testdraw").click(function () {
+            console.log(draw.historyStroker);
+            draw.testDraw();
+        })
+    </script>
+</body>
+</html>
